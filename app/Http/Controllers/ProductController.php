@@ -29,24 +29,30 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         try {
-            $imageName = Str::random(32) . "." . $request->image->getClientOriginalExtension();
             $request->validate([
-                'name' => 'required',
-                'description' => 'required',
-                'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048'
+                'name' => 'required|string',
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+                'description' => 'required|string',
             ]);
-            // Storage::disk('public')->put($imageName, file_get_contents($request->image));
-            // $imageName = $request->file('image')->store('images', 'public');
-            // Storage::disk('local')->put($imageName, file_get_contents($request->image));
-            Storage::disk('public')->putFileAs('images', $request->file('image'), $imageName);
-        } catch (Exception $e) {
-            throw new Exception($e);
+
+            $imageName = Str::random(32).".".$request->image->getClientOriginalExtension();
+
+            Product::create([
+                'name' => $request->name,
+                'image' => $imageName,
+                'description' => $request->description
+            ]);
+
+            // $request->image->move(public_path('images'), $imageName);
+            Storage::disk('public')->put($imageName,file_get_contents($request->image));
+            return response()->json([
+                'message' => "product successfully created."
+            ],200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "somting went really wrong!"
+            ],500);
         }
-        return Product::create([
-            'name' => $request->name,
-            'image' => $imageName,
-            'description' => $request->description
-        ]);
     }
 
     /**
@@ -68,32 +74,45 @@ class ProductController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request)
-{
-    $product = Product::find($request->id);
-    $imageName = '';
+    {
+        try {
+            $request->validate([
+                'name' => 'required|string',
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+                'description' => 'required|string',
+            ]);
 
-    if ($request->hasFile('image')) {
+            $product = Product::find($request->id);
+            if(!$product){
+                return response()->json([
+                    'message'=>'Product Not Found.'
+                ],404);
+            }
+
+            $product->name = $request->name;
+            $product->description = $request->description;
+
+            if($request->image) {
+                $storage = Storage::disk('public');
+
+                if($storage->exists($product->image)){
+                    $storage->delete($product->image);
+                }
+                $imageName = Str::random(32).".".$request->image->getClientOriginalExtension();
+                $product->image = $imageName;
+                Storage::disk('public')->put($imageName,file_get_contents($request->image));    
+            }
+            $product->save();
+            // $request->image->move(public_path('images'), $imageName);
+            return response()->json([
+                'message' => "product successfully update."
+            ],200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "somting went really wrong!"
+            ],500);
+        }
     }
-    $imageName = Str::random(32) . "." . $request->file('image')->getClientOriginalExtension();
-    print($imageName);
-    Storage::disk('public')->put($imageName, $request->file('image')->get());
-    // Storage::disk('public')->put($imageName, file_get_contents($request->image));
-
-
-    if ($product->image) {
-        $imageName = $product->image;
-    }
-
-    $productData = [
-        'name' => $request->name,
-        'image' => $imageName,
-        'description' => $request->description
-    ];
-
-    $product->update($productData);
-
-    return response()->json(['message' => 'Image updated successfully']);
-}
 
     /**
      * Remove the specified resource from storage.
